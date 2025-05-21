@@ -10,7 +10,7 @@ def build_executable():
 
     subprocess.run([
         "pyinstaller",
-        "--name=TXT2JSON",
+        "--name=TXT2JSON32",
         "--windowed",
         "--icon=assets/TXT2JSON.ico",
         "main.py"
