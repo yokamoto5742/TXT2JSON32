@@ -2,6 +2,29 @@ import json
 import os
 import re
 from io import StringIO
+from collections import defaultdict
+from datetime import datetime
+
+
+def convert_to_timestamp(date_str, time_str):
+    try:
+        date_match = re.match(r"(\d{4})/(\d{2})/(\d{2})", date_str)
+        if not date_match:
+            return None
+
+        year, month, day = date_match.groups()
+
+        time_match = re.match(r"(\d{2}):(\d{2})", time_str)
+        if not time_match:
+            return None
+
+        hour, minute = time_match.groups()
+
+        timestamp = f"{year}-{month}-{day}T{hour}:{minute}:00Z"
+
+        return timestamp
+    except Exception:
+        return None
 
 
 def process_record(current_record, content_buffer, records, new_record_data=None):
@@ -21,6 +44,57 @@ def process_record(current_record, content_buffer, records, new_record_data=None
     return ""
 
 
+def group_records_by_datetime(records):
+    grouped = defaultdict(dict)
+
+    for record in records:
+        key = (record['date'], record['department'], record['time'])
+
+        soap_section = record['soap_section']
+        soap_mapping = {
+            'S': 'subject',
+            'O': 'object',
+            'A': 'assessment',
+            'P': 'plan',
+            'F': 'comment',
+            'サ': 'summary'
+        }
+        soap_field = soap_mapping.get(soap_section, f"{soap_section}_content")
+
+        if 'timestamp' not in grouped[key]:
+            timestamp = convert_to_timestamp(record['date'], record['time'])
+            grouped[key]['timestamp'] = timestamp
+            grouped[key]['department'] = record['department']
+
+        content = record['content'].strip()
+        if soap_field in grouped[key]:
+            existing_content = grouped[key][soap_field]
+            if content not in existing_content:
+                grouped[key][soap_field] += "\n" + content
+        else:
+            grouped[key][soap_field] = content
+
+    result = list(grouped.values())
+
+    result.sort(key=lambda x: x['timestamp'] if x['timestamp'] else '')
+
+    return result
+
+
+def remove_duplicates(records):
+    seen_records = set()
+    unique_records = []
+
+    for record in records:
+        record_str = json.dumps(record, sort_keys=True, ensure_ascii=False)
+
+        if record_str not in seen_records:
+            seen_records.add(record_str)
+            unique_records.append(record)
+
+    return unique_records
+
+
 def parse_medical_text(text):
     records = []
     current_record = {}
@@ -28,7 +102,7 @@ def parse_medical_text(text):
 
     date_pattern = re.compile(r"(\d{4}/\d{2}/\d{2}\(.?\))(?:\s*（入院\s*(\d+)\s*日目）)?")
     entry_pattern = re.compile(r"(.+?)\s+(.+?)\s+(.+?)\s+(\d{2}:\d{2})")
-    soap_pattern = re.compile(r"([SOAPF])\s*>")
+    soap_pattern = re.compile(r"([SOAPFサ])\s*>")
 
     for line in StringIO(text):
         line = line.strip()
@@ -69,4 +143,8 @@ def parse_medical_text(text):
             seen_keys.add(key)
             unique_records.append(record)
 
-    return unique_records
+    grouped_records = group_records_by_datetime(unique_records)
+
+    final_records = remove_duplicates(grouped_records)
+
+    return final_records
