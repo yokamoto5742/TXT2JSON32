@@ -265,10 +265,11 @@ class TestMedicalTextConverter:
         assert args[0] == "エラー"
         assert "SOAPコピー中にエラーが発生しました" in args[1]
 
+    @patch('pyperclip.copy')
     @patch('main.parse_medical_text')
     @patch('tkinter.messagebox.showinfo')
     @patch('tkinter.messagebox.showwarning')
-    def test_convert_to_json_success(self, mock_showwarning, mock_showinfo, mock_parse_method):
+    def test_convert_to_json_success(self, mock_showwarning, mock_showinfo, mock_parse_method, mock_copy_method):
         """JSON変換成功のテスト"""
         converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
@@ -283,7 +284,7 @@ class TestMedicalTextConverter:
         mock_parse_method.assert_called_with("医療テキスト\n")
         mock_text_output.delete.assert_called_with("1.0", "end")
         mock_text_output.insert.assert_called()
-        mock_copy.assert_called()
+        mock_copy_method.assert_called()
         mock_showinfo.assert_called_with("完了", "JSON形式に変換しコピーしました")
         assert converter.is_monitoring_clipboard is False
 
