@@ -265,21 +265,22 @@ class TestMedicalTextConverter:
         assert args[0] == "エラー"
         assert "SOAPコピー中にエラーが発生しました" in args[1]
 
+    @patch('main.parse_medical_text')
     @patch('tkinter.messagebox.showinfo')
     @patch('tkinter.messagebox.showwarning')
-    def test_convert_to_json_success(self, mock_showwarning, mock_showinfo):
+    def test_convert_to_json_success(self, mock_showwarning, mock_showinfo, mock_parse_method):
         """JSON変換成功のテスト"""
         converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト入力データ（get()は末尾に改行を含む）
         mock_text_input.get.return_value = "医療テキスト\n"
-        mock_parse.return_value = [{"date": "2024/05/26", "content": "テストデータ"}]
+        mock_parse_method.return_value = [{"date": "2024/05/26", "content": "テストデータ"}]
 
         # テスト実行
         converter.convert_to_json()
 
         # 検証（get()の戻り値をそのまま渡すので、改行付きで呼ばれる）
-        mock_parse.assert_called_with("医療テキスト\n")
+        mock_parse_method.assert_called_with("医療テキスト\n")
         mock_text_output.delete.assert_called_with("1.0", "end")
         mock_text_output.insert.assert_called()
         mock_copy.assert_called()
@@ -300,14 +301,15 @@ class TestMedicalTextConverter:
         # 検証
         mock_showwarning.assert_called_with("警告", "変換するテキストがありません。")
 
+    @patch('main.parse_medical_text')
     @patch('tkinter.messagebox.showerror')
-    def test_convert_to_json_error(self, mock_showerror):
+    def test_convert_to_json_error(self, mock_showerror, mock_parse_method):
         """JSON変換エラーのテスト"""
         converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # エラーを発生させる
         mock_text_input.get.return_value = "医療テキスト\n"
-        mock_parse.side_effect = Exception("パースエラー")
+        mock_parse_method.side_effect = Exception("パースエラー")
 
         # テスト実行
         converter.convert_to_json()
@@ -353,13 +355,14 @@ class TestMedicalTextConverter:
         assert args[0] == "エラー"
         assert "マウス操作中にエラーが発生しました" in args[1]
 
-    def test_open_text_editor(self):
+    @patch('main.TextEditor')
+    def test_open_text_editor(self, mock_text_editor_method):
         """テキストエディタ開くテスト"""
         converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # モックエディタインスタンス
         mock_editor_instance = Mock()
-        mock_text_editor.return_value = mock_editor_instance
+        mock_text_editor_method.return_value = mock_editor_instance
 
         # テスト実行
         converter.open_text_editor()
@@ -367,7 +370,7 @@ class TestMedicalTextConverter:
         # 検証
         assert converter.is_monitoring_clipboard is False
         converter.root.withdraw.assert_called_once()
-        mock_text_editor.assert_called_with(converter.root, "")
+        mock_text_editor_method.assert_called_with(converter.root, "")
         assert mock_editor_instance.on_close == converter._restore_clipboard_monitoring
 
     def test_restore_clipboard_monitoring(self):
@@ -420,7 +423,7 @@ class TestMedicalTextConverterIntegration:
     @patch('pyperclip.copy')
     @patch('tkinter.messagebox.showinfo')
     @patch('main.TextEditor')
-    def test_full_conversion_workflow(self, mock_text_editor, mock_showinfo, mock_copy, mock_parse,
+    def test_full_conversion_workflow(self, mock_text_editor, mock_showinfo, mock_copy, mock_parse_method,
                                       mock_button, mock_label, mock_scrolled_text,
                                       mock_labelframe, mock_frame, mock_load_config):
         """完全な変換ワークフローの統合テスト"""
@@ -437,7 +440,7 @@ class TestMedicalTextConverterIntegration:
         mock_text_input.get.return_value = "2024/05/26(日)\n内科 医師 外来 14:30\nS >\n頭痛があります\n"
 
         mock_scrolled_text.side_effect = [mock_text_input, mock_text_output]
-        mock_parse.return_value = [{"timestamp": "2024-05-26T14:30:00Z", "subject": "頭痛があります"}]
+        mock_parse_method.return_value = [{"timestamp": "2024-05-26T14:30:00Z", "subject": "頭痛があります"}]
 
         # テスト実行
         mock_root = Mock()
@@ -448,7 +451,7 @@ class TestMedicalTextConverterIntegration:
         converter.convert_to_json()
 
         # 検証（get()の戻り値をそのまま渡す）
-        mock_parse.assert_called_once_with("2024/05/26(日)\n内科 医師 外来 14:30\nS >\n頭痛があります\n")
+        mock_parse_method.assert_called_once_with("2024/05/26(日)\n内科 医師 外来 14:30\nS >\n頭痛があります\n")
         mock_text_output.delete.assert_called_with("1.0", "end")
         mock_text_output.insert.assert_called()
         mock_copy.assert_called()
@@ -460,8 +463,8 @@ class TestMainFunction:
 
     @patch('main.MedicalTextConverter')
     @patch('tkinter.Tk')
-    @patch('services.txt_parse.parse_medical_text')
-    @patch('services.txt_editor.TextEditor')
+    @patch('main.parse_medical_text')
+    @patch('main.TextEditor')
     def test_main_execution(self, mock_text_editor, mock_parse, mock_tk, mock_converter_class):
         """メイン実行のテスト"""
         from main import MedicalTextConverter
