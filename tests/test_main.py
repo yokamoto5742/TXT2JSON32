@@ -15,7 +15,9 @@ class TestMedicalTextConverter:
                 patch('tkinter.scrolledtext.ScrolledText') as mock_scrolled_text, \
                 patch('tkinter.Label') as mock_label, \
                 patch('tkinter.Button') as mock_button, \
-                patch('pyperclip.copy') as mock_copy:
+                patch('pyperclip.copy') as mock_copy, \
+                patch('main.parse_medical_text') as mock_parse, \
+                patch('main.TextEditor') as mock_text_editor:
             from main import MedicalTextConverter
 
             # 設定モック
@@ -53,7 +55,7 @@ class TestMedicalTextConverter:
             converter.stats_label = mock_stats_label
             converter.monitor_status_label = mock_monitor_status_label
 
-            return converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy
+            return converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor
 
     def test_init_configuration_loading(self):
         """初期化時の設定読み込みテスト"""
@@ -62,7 +64,9 @@ class TestMedicalTextConverter:
                 patch('tkinter.LabelFrame'), \
                 patch('tkinter.scrolledtext.ScrolledText'), \
                 patch('tkinter.Label'), \
-                patch('tkinter.Button'):
+                patch('tkinter.Button'), \
+                patch('main.parse_medical_text'), \
+                patch('main.TextEditor'):
             from main import MedicalTextConverter
 
             mock_config = Mock()
@@ -80,7 +84,7 @@ class TestMedicalTextConverter:
 
     def test_update_stats_with_content(self):
         """コンテンツありでの統計更新テスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テキスト入力のモック設定
         mock_text_input.get.return_value = "行1\n行2\n行3\n"
@@ -93,7 +97,7 @@ class TestMedicalTextConverter:
 
     def test_update_stats_empty_content(self):
         """空コンテンツでの統計更新テスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 空のテキスト入力
         mock_text_input.get.return_value = "   \n  \n  "
@@ -106,7 +110,7 @@ class TestMedicalTextConverter:
 
     def test_set_monitoring_state_enabled(self):
         """クリップボード監視有効化のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト実行
         converter.set_monitoring_state(True)
@@ -117,7 +121,7 @@ class TestMedicalTextConverter:
 
     def test_set_monitoring_state_disabled(self):
         """クリップボード監視無効化のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト実行
         converter.set_monitoring_state(False)
@@ -127,9 +131,9 @@ class TestMedicalTextConverter:
         mock_monitor_status_label.config.assert_called_with(text="クリップボード監視: OFF", fg="red")
 
     @patch('pyperclip.copy')
-    def test_start_monitoring(self, mock_copy):
+    def test_start_monitoring(self, mock_copy_patch):
         """監視開始のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, _ = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト実行
         converter.start_monitoring()
@@ -138,13 +142,13 @@ class TestMedicalTextConverter:
         assert converter.is_monitoring_clipboard is True
         mock_text_input.delete.assert_called_with("1.0", "end")
         mock_text_output.delete.assert_called_with("1.0", "end")
-        mock_copy.assert_called_with("")
+        mock_copy_patch.assert_called_with("")
         assert converter.clipboard_content == ""
         assert converter.is_first_check is False
 
     def test_clear_text(self):
         """テキストクリアのテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト実行
         converter.clear_text()
@@ -156,7 +160,7 @@ class TestMedicalTextConverter:
     @patch('pyperclip.paste')
     def test_check_clipboard_new_content(self, mock_paste):
         """新しいクリップボードコンテンツの検出テスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 初期設定
         converter.is_monitoring_clipboard = True
@@ -179,7 +183,7 @@ class TestMedicalTextConverter:
     @patch('pyperclip.paste')
     def test_check_clipboard_monitoring_disabled(self, mock_paste):
         """監視無効時のクリップボードチェックテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 監視を無効化
         converter.is_monitoring_clipboard = False
@@ -194,7 +198,7 @@ class TestMedicalTextConverter:
     @patch('pyperclip.paste')
     def test_check_clipboard_first_check(self, mock_paste):
         """初回チェック時のクリップボード処理テスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 初回チェック設定
         converter.is_monitoring_clipboard = True
@@ -213,7 +217,7 @@ class TestMedicalTextConverter:
     @patch('pyperclip.paste')
     def test_check_clipboard_exception_handling(self, mock_paste):
         """クリップボードチェック例外処理のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 例外を発生させる
         converter.is_monitoring_clipboard = True
@@ -233,7 +237,7 @@ class TestMedicalTextConverter:
     @patch('tkinter.messagebox.showerror')
     def test_soap_copy_success(self, mock_showerror, mock_mouse_main):
         """SOAPコピー成功のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト実行
         converter.soap_copy()
@@ -247,7 +251,7 @@ class TestMedicalTextConverter:
     @patch('tkinter.messagebox.showerror')
     def test_soap_copy_error(self, mock_showerror, mock_mouse_main):
         """SOAPコピーエラーのテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 例外を発生させる
         mock_mouse_main.side_effect = Exception("SOAPエラー")
@@ -261,13 +265,11 @@ class TestMedicalTextConverter:
         assert args[0] == "エラー"
         assert "SOAPコピー中にエラーが発生しました" in args[1]
 
-    @patch('services.txt_parse.parse_medical_text')
     @patch('tkinter.messagebox.showinfo')
     @patch('tkinter.messagebox.showwarning')
-    @patch('pyperclip.copy')
-    def test_convert_to_json_success(self, mock_copy, mock_showwarning, mock_showinfo, mock_parse):
+    def test_convert_to_json_success(self, mock_showwarning, mock_showinfo):
         """JSON変換成功のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, _ = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # テスト入力データ（get()は末尾に改行を含む）
         mock_text_input.get.return_value = "医療テキスト\n"
@@ -287,7 +289,7 @@ class TestMedicalTextConverter:
     @patch('tkinter.messagebox.showwarning')
     def test_convert_to_json_empty_text(self, mock_showwarning):
         """空テキストでのJSON変換テスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 空のテキスト入力
         mock_text_input.get.return_value = "   "
@@ -298,11 +300,10 @@ class TestMedicalTextConverter:
         # 検証
         mock_showwarning.assert_called_with("警告", "変換するテキストがありません。")
 
-    @patch('services.txt_parse.parse_medical_text')
     @patch('tkinter.messagebox.showerror')
-    def test_convert_to_json_error(self, mock_showerror, mock_parse):
+    def test_convert_to_json_error(self, mock_showerror):
         """JSON変換エラーのテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # エラーを発生させる
         mock_text_input.get.return_value = "医療テキスト\n"
@@ -321,7 +322,7 @@ class TestMedicalTextConverter:
     @patch('tkinter.messagebox.showerror')
     def test_run_mouse_automation_success(self, mock_showerror, mock_mouse_main):
         """マウス自動化実行成功のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # show_notificationメソッドをモック
         converter.show_notification = Mock()
@@ -338,7 +339,7 @@ class TestMedicalTextConverter:
     @patch('tkinter.messagebox.showerror')
     def test_run_mouse_automation_error(self, mock_showerror, mock_mouse_main):
         """マウス自動化実行エラーのテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # エラーを発生させる
         mock_mouse_main.side_effect = Exception("マウス操作エラー")
@@ -352,11 +353,9 @@ class TestMedicalTextConverter:
         assert args[0] == "エラー"
         assert "マウス操作中にエラーが発生しました" in args[1]
 
-    @patch('services.txt_editor.TextEditor')
-    @patch('tkinter.Toplevel')
-    def test_open_text_editor(self, mock_toplevel, mock_text_editor):
+    def test_open_text_editor(self):
         """テキストエディタ開くテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # モックエディタインスタンス
         mock_editor_instance = Mock()
@@ -373,7 +372,7 @@ class TestMedicalTextConverter:
 
     def test_restore_clipboard_monitoring(self):
         """クリップボード監視復元のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # 監視状態を設定
         converter.is_monitoring_clipboard = True
@@ -386,7 +385,7 @@ class TestMedicalTextConverter:
 
     def test_show_notification(self):
         """通知表示のテスト"""
-        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy = self.create_mock_converter()
+        converter, mock_text_input, mock_text_output, mock_stats_label, mock_monitor_status_label, mock_copy, mock_parse, mock_text_editor = self.create_mock_converter()
 
         # Toplevelと関連要素をモック
         with patch('tkinter.Toplevel') as mock_toplevel, \
@@ -417,10 +416,11 @@ class TestMedicalTextConverterIntegration:
     @patch('tkinter.scrolledtext.ScrolledText')
     @patch('tkinter.Label')
     @patch('tkinter.Button')
-    @patch('services.txt_parse.parse_medical_text')
+    @patch('main.parse_medical_text')
     @patch('pyperclip.copy')
     @patch('tkinter.messagebox.showinfo')
-    def test_full_conversion_workflow(self, mock_showinfo, mock_copy, mock_parse,
+    @patch('main.TextEditor')
+    def test_full_conversion_workflow(self, mock_text_editor, mock_showinfo, mock_copy, mock_parse,
                                       mock_button, mock_label, mock_scrolled_text,
                                       mock_labelframe, mock_frame, mock_load_config):
         """完全な変換ワークフローの統合テスト"""
@@ -460,7 +460,9 @@ class TestMainFunction:
 
     @patch('main.MedicalTextConverter')
     @patch('tkinter.Tk')
-    def test_main_execution(self, mock_tk, mock_converter_class):
+    @patch('services.txt_parse.parse_medical_text')
+    @patch('services.txt_editor.TextEditor')
+    def test_main_execution(self, mock_text_editor, mock_parse, mock_tk, mock_converter_class):
         """メイン実行のテスト"""
         from main import MedicalTextConverter
 
